@@ -5,13 +5,15 @@
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
-    "dev": "electron . --dev",
+    "start-no-sandbox": "electron . --no-sandbox",
+    "dev": "electron . --dev --no-sandbox",
     "build": "electron-builder",
     "build-win": "electron-builder --win",
     "build-mac": "electron-builder --mac",
     "build-linux": "electron-builder --linux",
     "pack": "electron-builder --dir",
-    "postinstall": "electron-builder install-app-deps"
+    "postinstall": "electron-builder install-app-deps && npm run fix-sandbox",
+    "fix-sandbox": "[ -f node_modules/electron/dist/chrome-sandbox ] && sudo chown root:root node_modules/electron/dist/chrome-sandbox && sudo chmod 4755 node_modules/electron/dist/chrome-sandbox || echo 'Sandbox fix skipped'"
   },
   "keywords": [
     "prayer",
@@ -90,7 +92,13 @@
           ]
         }
       ],
-      "category": "Utility"
+      "category": "Utility",
+      "desktop": {
+        "StartupWMClass": "shalat-reminder"
+      },
+      "executableArgs": [
+        "--no-sandbox"
+      ]
     },
     "nsis": {
       "oneClick": true,

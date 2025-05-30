@@ -27,7 +27,8 @@ function createWindow() {
     height: 600,
     webPreferences: {
       nodeIntegration: true,
-      contextIsolation: false
+      contextIsolation: false,
+      sandbox: false // Disable sandbox for Linux compatibility
     },
     icon: path.join(__dirname, '../assets/icon.png'),
     show: false, // Start hidden
