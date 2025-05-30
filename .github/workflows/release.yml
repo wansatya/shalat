@@ -1,0 +1,140 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+env:
+  ELECTRON_CACHE: ${{ github.workspace }}/.cache/electron
+  ELECTRON_BUILDER_CACHE: ${{ github.workspace }}/.cache/electron-builder
+
+jobs:
+  release:
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: 'npm'
+
+      - name: Cache Electron
+        uses: actions/cache@v3
+        with:
+          path: ${{ env.ELECTRON_CACHE }}
+          key: ${{ runner.os }}-electron-cache-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-electron-cache-
+
+      - name: Cache Electron Builder
+        uses: actions/cache@v3
+        with:
+          path: ${{ env.ELECTRON_BUILDER_CACHE }}
+          key: ${{ runner.os }}-electron-builder-cache-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-electron-builder-cache-
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Electron app for Linux
+        if: matrix.os == 'ubuntu-latest'
+        run: npm run build-linux
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build Electron app for Windows
+        if: matrix.os == 'windows-latest'
+        run: npm run build-win
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build Electron app for macOS
+        if: matrix.os == 'macos-latest'
+        run: npm run build-mac
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Add these if you want to notarize macOS builds
+          # APPLE_ID: ${{ secrets.APPLE_ID }}
+          # APPLE_ID_PASS: ${{ secrets.APPLE_ID_PASS }}
+          # CSC_LINK: ${{ secrets.CSC_LINK }}
+          # CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: build-${{ matrix.os }}
+          path: |
+            dist/*.exe
+            dist/*.dmg
+            dist/*.AppImage
+            dist/*.deb
+            dist/*.snap
+          retention-days: 5
+
+  create-release:
+    needs: release
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            build-windows-latest/*.exe
+            build-macos-latest/*.dmg
+            build-ubuntu-latest/*.AppImage
+            build-ubuntu-latest/*.deb
+          name: Shalat Reminder ${{ github.ref_name }}
+          body: |
+            ## What's New
+            
+            - Automated release for ${{ github.ref_name }}
+            - Bug fixes and performance improvements
+            
+            ## Download Instructions
+            
+            ### Windows
+            - Download `Shalat-Reminder-Setup.exe`
+            - Run the installer (one-click install)
+            - The app will start automatically
+            
+            ### macOS
+            - Download `Shalat-Reminder.dmg`
+            - Open the DMG file
+            - Drag the app to Applications folder
+            - Launch from Applications or Launchpad
+            
+            ### Linux
+            - **AppImage**: Download `Shalat-Reminder.AppImage`, make it executable (`chmod +x`), and run
+            - **Debian/Ubuntu**: Download `shalat-reminder.deb` and install with `sudo dpkg -i shalat-reminder.deb`
+            
+            ## System Requirements
+            - **Windows**: Windows 10 or later
+            - **macOS**: macOS 10.14 or later
+            - **Linux**: Most modern distributions
+            
+            ---
+            
+            **Full Changelog**: https://github.com/${{ github.repository }}/compare/v1.0.0...${{ github.ref_name }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
